@@ -3,5 +3,18 @@
     "url": "http://192.168.1.225:8091/",
     "token": "zqAZBXZEsYToEvzD91gf"
   },
-  "projects": []
+  "projects": [
+    [
+      51,
+      "FlipeOn Api",
+      "FLIPEON",
+      "flipeon-api"
+    ],
+    [
+      129,
+      "FlipeOn Ajuda",
+      "FLIPEON",
+      "flipeon-ajuda"
+    ]
+  ]
 }

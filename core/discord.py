@@ -4,12 +4,12 @@ from core.logger import getLogger
 
 class Discord:
 
-    ctx = None;
+    guild = None;
     logger = None;
 
-    def __init__(self, ctx):
+    def __init__(self, guild):
         self.logger = getLogger();
-        self.ctx = ctx;
+        self.guild = guild;
 
     """
     Adds a new category to the Discord server.
@@ -21,9 +21,9 @@ class Discord:
     discord.CategoryChannel: The created or existing category.
     """
     async def addCategory(self, category_name):
-        category = discord.utils.get(self.ctx.guild.categories, name=category_name)
+        category = discord.utils.get(self.guild.categories, name=category_name)
         if not category:
-            category = await self.ctx.guild.create_category(category_name)
+            category = await self.guild.create_category(category_name)
             self.logger.info(f"Created new category: {category_name}")
         else:
             self.logger.info(f"Using existing category: {category_name}")
@@ -45,12 +45,12 @@ class Discord:
         category = None;
 
         if not (category_name is None): 
-            category = discord.utils.get(self.ctx.guild.categories, name=category_name)
+            category = discord.utils.get(self.guild.categories, name=category_name)
 
         if category is None: 
-            category = self.ctx.guild          
+            category = self.guild          
 
-        text_channel = discord.utils.get(self.ctx.guild.channels, name=channel_name)
+        text_channel = discord.utils.get(self.guild.channels, name=channel_name)
         if not text_channel:
             text_channel = await category.create_text_channel(channel_name)
             self.logger.info(f"Created new text channel: {channel_name}")
@@ -74,13 +74,13 @@ class Discord:
 
         category = None;
 
-        if not (category_name is None): 
-            category = discord.utils.get(self.ctx.guild.categories, name=category_name)
+        if category_name is not None: 
+            category = discord.utils.get(self.guild.categories, name=category_name)
 
         if category is None: 
-            category = self.ctx.guild          
+            category = self.guild          
 
-        text_channel = discord.utils.get(self.ctx.guild.channels, name=channel_name)
+        text_channel = discord.utils.get(category.channels, name=channel_name)
         if not text_channel:
             text_channel = await category.create_voice_channel(channel_name)
             self.logger.info(f"Created new voice channel: {channel_name}")
@@ -100,7 +100,7 @@ class Discord:
     """
     async def getChannel(self, channel_name, category=None):
         if category is None:
-            return discord.utils.get(self.ctx.guild.channels, name=channel_name)
+            return discord.utils.get(self.guild.channels, name=channel_name)
         return discord.utils.get(category.channels, name=channel_name)
     
     """
@@ -113,12 +113,12 @@ class Discord:
     discord.CategoryChannel: The retrieved category if found, otherwise None.
     """
     async def getCategory(self, category_name):
-        return discord.utils.get(self.ctx.guild.categories, name=category_name)
+        return discord.utils.get(self.guild.categories, name=category_name)
     
 
 # remove category with yours channels from discord
 async def removeCategory(self, category_name):
-    category = discord.utils.get(self.ctx.guild.categories, name=category_name)
+    category = discord.utils.get(self.guild.categories, name=category_name)
     if category:
         # remove the category channels
         for channel in category.channels:

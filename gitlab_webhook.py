@@ -1,11 +1,11 @@
 import logging
 from aiohttp import web
 import discord
-import asyncio
 from discord_manager import DiscordManager
 from user_link import UserLink
 from notification_templates import get_notification_message
-from config import Config
+from Config import Config
+from actions.project import Project
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -20,27 +20,32 @@ async def handle_webhook(request, bot, discord_manager, user_link, config):
     if not project_info:
         return web.Response(text='Project not found', status=404)
 
-    _, project_name, group_name, channel_name = project_info
+    # Unpack project_info, assuming the order of columns in your database
+    id, name, group_name, channel_name = project_info
 
-    channel = discord.utils.get(bot.get_all_channels(), name=channel_name)
+    # Get the first guild (assuming the bot is in only one guild)
+    guild = bot.guilds[0] if bot.guilds else None
+    if not guild:
+        return web.Response(text='Bot is not in any guild', status=500)
+
+    # Find the category and channel
+    category = discord.utils.get(guild.categories, name=group_name)
+    if not category:
+        return web.Response(text=f'Category "{group_name}" not found', status=404)
+    
+    channel = discord.utils.get(category.channels, name=channel_name)
     if not channel:
-        return web.Response(text='Channel not found', status=404)
+        return web.Response(text=f'Channel "{channel_name}" not found in category "{group_name}"', status=404)
 
     logger.info(f'event_type: {event_type}')
     logger.info(f'data: {data}')
 
-    event_handlers = {
-        'Push Hook': handle_push,
-        'Merge Request Hook': handle_merge_request,
-        'Issue Hook': handle_issue,
-        'Pipeline Hook': handle_pipeline
-    }
+    # Create a Project instance
+    project = Project(guild)
+    await project.load(project_id)
 
-    handler = event_handlers.get(event_type)
-    if handler:
-        await handler(data, channel, user_link, config)
-    else:
-        logger.warning(f'Unhandled event type: {event_type}')
+    # Call the handle_webhook method of the Project instance
+    await project.handle_webhook(bot, data, event_type)
 
     return web.Response(text='Webhook received and processed')
 
@@ -62,27 +67,32 @@ async def handle_push(data, channel, user_link, config):
 async def handle_merge_request(data, channel, user_link, config):
     mr_action = data['object_attributes']['state']
     mr_title = data['object_attributes']['title']
+    mr_description = data['object_attributes']['description']
     mr_url = data['object_attributes']['url']
-    author_name = data['user']['name']
+    author_name = data['object_attributes']['last_commit']['author']['name']
     source_branch = data['object_attributes']['source_branch']
     target_branch = data['object_attributes']['target_branch']
+    merge_status = data['object_attributes']['merge_status']
+    merge_error = data['object_attributes']['merge_error']
+    created_at = data['object_attributes']['created_at']
+    last_edited_at = data['object_attributes']['last_edited_at']
 
     message = get_notification_message(
         'merge_request', mr_action, 
         title=mr_title, 
+        description=mr_description, 
         url=mr_url, 
         author=author_name, 
         source=source_branch, 
-        target=target_branch
+        target=target_branch,
+        merge_status=merge_status,
+        merge_error=merge_error,
+        created_at=created_at,
+        last_edited_at=last_edited_at
     )
 
-    # Fetch notifications from the database
-    notifications = await config.get_notifications()
-    roles_to_notify = [role for event_type, role in notifications if event_type == 'merge_request']
-    
-    mentions = await user_link.get_mention_string(roles_to_notify)
-
-    await channel.send(f"{mentions}\n{message}")
+    logger.info(message)
+    await channel.send(f"{message}")
 
 
 async def handle_issue(data, channel, user_link, config):

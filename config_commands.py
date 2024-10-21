@@ -5,7 +5,7 @@
 # !show_config: Display the current bot configuration.
 
 from discord.ext import commands
-from config import Config
+from Config import Config
 from notification_templates import get_help_message, get_success_message, get_config_message
 
 class ConfigCommands(commands.Cog):

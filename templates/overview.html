@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title></title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: white; /* #f4f6f9;*/
+            color: #333;
+            /* margin: 16px;
+            border-radius: 8px; */
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            padding-top: 10px;
+            max-width: 500px;
+            margin: auto;
+        }
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            color: #2c3e50;
+        }
+
+        .row, .col {
+          width: 100%;
+          display: flex;
+        } 
+
+        .w-full {
+          width: 100%;
+        }
+
+        .row {
+          flex-direction: row;
+          align-items: center;
+        }
+
+        .cols {
+          width: 100%;
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+        }
+
+        .cols-between {
+          justify-content: space-between;
+          flex-direction: row;
+          align-items: center;
+        }
+
+        .right {
+          display: flex;
+          flex-direction: row;
+          align-items: flex-end;
+        }
+
+        .left {
+          display: flex;
+          flex-direction: row;
+          align-items: flex-start;
+        }
+
+        .vtop {
+          align-items: flex-start;
+        }
+
+        .vcenter {
+          align-items: baseline;
+        }
+
+        .vcols {
+          width: 100%;
+          display: flex;
+          justify-content: space-between;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .col {
+          flex-direction: column;
+        }
+
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            /* box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); */
+            padding: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 300px;
+            align-items: center;
+        }
+        .card .icon {
+            font-size: 24px;
+            margin-right: 8px;
+            color: #3498db;
+        }
+        .card .info {
+            font-size: 18px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .small-text {
+            font-size: 12px;
+            margin-bottom: 4px;
+            color: #7f8c8d;
+        }
+        .project-head {
+            color: #555;
+            font-weight: bold;
+        }
+
+        .project-info {
+            margin-bottom: 4px;
+            margin-top: 4px;
+            color: #7f8c8d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-direction: row;
+        }
+        .project-info:not(:last-child) {
+            padding-bottom: 4px;
+            border-bottom: 1px dashed rgba(0,0,0,0.12);
+        }
+        .bar-container {
+            width: 100%;
+            background-color: #ecf0f1;
+            border-radius: 8px;
+            margin-bottom: 4px;
+            overflow: hidden;
+        }
+        .bar {
+            height: 20px;
+            border-radius: 8px;
+            background-color: #3498db;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            margin-top: 20px;
+            color: #95a5a6;
+        }
+
+        #card-footer {
+          padding-bottom: 10px;
+        }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+        <div class="card">
+          <div id="card-title" class="cols w-full cols-between vtop">
+      
+            <div class="col left">
+              <div class="row vcenter">
+                <!-- 🧪 -->
+                <div class="icon">{{project_icon}}</div>
+                <div class="info">{{project_name}}</div>
+              </div>
+            </div>
+            <div class="col right">
+              <div class="small-text">Versão: {{version}}</div>
+              <div class="small-text">Atualizado: {{updated_at}}</div>
+              <div class="small-text">({{humanized_updated_at}})</div>
+            </div>
+          </div>
+          <div id="card-content" class="w-full">
+            {{repositories_box_content}}
+          </div>  
+          <div id="card-footer" class="row w-full vcols">
+            <div class="bar-container">
+                <div class="bar" style="width: 11%;"></div>
+              </div>
+              <div class="row" style="display: flex; flex-direction: row; justify-content: end; ">
+                <div class="small-text">Uso: {{resource_use}}</div>
+                <div class="small-text" style="padding-left:4px">| Instâncias Ativas: {{instances_count}}</div>
+              </div>
+          </div>
+        </div>
+  </body>
+</html>

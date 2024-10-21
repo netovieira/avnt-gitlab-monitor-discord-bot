@@ -1,4 +1,4 @@
-from config import Config
+from Config import Config
 from gitlab import Gitlab
 
 class GitlabClient:
@@ -35,3 +35,16 @@ class GitlabClient:
         if cls.instance is None:
             cls.instance = await cls.create()
         return cls.instance
+
+    
+def translate_merge_status(status):
+    translations = {
+        'cannot_be_merged': 'Não pode ser mesclado',
+        'can_be_merged': 'Pode ser mesclado',
+        'unchecked': 'Não verificado',
+        'checking': 'Verificando',
+        'mergeable': 'Pode ser mesclado',
+        '   ': 'Conflitante',
+        'unknown': 'Desconhecido'
+    }
+    return translations.get(status, status)

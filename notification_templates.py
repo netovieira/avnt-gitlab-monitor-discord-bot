@@ -1,31 +1,55 @@
+from helpers.datetime import format_date
+from helpers.gitlab import translate_merge_status
+
+
 def get_notification_message(event_type, action, **kwargs):
     templates = {
-        'push': "🔨 Novo push para o branch **{branch}**\nCommits: {commit_count}",
         'merge_request': {
-            'opened': "📣 Novo merge request aberto por **{author}**\nTítulo: **{title}**\nDe: `{source}` para `{target}`\nURL: {url}",
-            'closed': "🚫 Merge request fechado: **{title}**\nURL: {url}",
-            'merged': "✅ Merge request mesclado: **{title}**\nURL: {url}",
-            'approved': "👍 Merge request aprovado: **{title}**\nURL: {url}",
-            'unapproved': "👎 Aprovação do merge request removida: **{title}**\nURL: {url}",
-        },
-        'issue': {
-            'opened': "🐛 Nova issue aberta: **{title}**\nURL: {url}",
-            'closed': "🏁 Issue fechada: **{title}**\nURL: {url}",
-            'reopened': "🔄 Issue reaberta: **{title}**\nURL: {url}",
-        },
-        'pipeline': {
-            'success': "✅ Pipeline concluído com sucesso para o branch **{branch}**",
-            'failed': "❌ Pipeline falhou para o branch **{branch}**",
-            'running': "🏃 Pipeline em execução para o branch **{branch}**",
+            'opened': 
+                "📣 Novo merge request aberto por **{author}**:\n"
+                "De: `{source}` para `{target}`\n\n"
+                "**Título**: {title}\n"
+                "**Descrição**: {description}\n\n"
+                "**Status**: {merge_status}\n"
+                "**Criado em**: {created_at}\n"
+                "**Última edição**: {last_edited_at}{mentions}",
+            'closed': 
+                "🚫 Merge request fechado: **{title}**\n"
+                "Status: **{merge_status}**\n"
+                "Última edição: {last_edited_at}{mentions}",
+            'merged': 
+                "✅ Merge request mesclado: **{title}**\n"
+                "De: `{source}` para `{target}`{mentions}",
+            'approved': 
+                "👍 Merge request aprovado: **{title}**\n"
+                "Status: **{merge_status}**{mentions}",
+            'unapproved': 
+                "👎 Aprovação do merge request removida: **{title}**\n"
+                "Status: **{merge_status}**{mentions}",
         },
     }
 
     try:
-        # Use the action to select the appropriate template and format it with kwargs
-        return templates[event_type][action].format(**kwargs)
+        template = templates[event_type][action]
+        
+        # Format all date fields (ending with _at)
+        for key, value in kwargs.items():
+            if key.endswith('_at'):
+                kwargs[key] = format_date(value)
+        
+        if 'merge_status' in kwargs:
+            kwargs['merge_status'] = translate_merge_status(kwargs['merge_status'])
+            
+
+        if not 'mentions' in kwargs:
+            kwargs['mentions'] = ""
+        else:
+            kwargs['mentions'] = "\n" + kwargs['mentions']
+
+        return template.format(**kwargs)
     except KeyError as e:
         print(f"Template KeyError: {e}")
-        return f"An error occurred: missing template for {event_type} - {action}"
+        return f"Ocorreu um erro: template ausente para {event_type} - {action}"
 
 def get_error_message(error_type):
     error_templates = {
@@ -77,13 +101,9 @@ def get_success_message(action_type, **kwargs):
     success_templates = {
         'gitlab_config': "✅ Configuração do GitLab atualizada com sucesso!",
         'project_added': "✅ Projeto '{project_name}' (ID: {project_id}) adicionado com sucesso!",
-        'role_added': "✅ Função '{role}' associada ao email '{email}' com sucesso!",
-        'notification_added': "✅ Notificação para evento '{event_type}' configurada para a função '{role}' com sucesso!",
         'user_linked': "✅ Conta do Discord vinculada com sucesso ao email do GitLab.",
         'user_unlinked': "✅ Conta do Discord desvinculada com sucesso do GitLab.",
         'channel_created': "✅ Novo canal criado para o repositório: **{repo_name}**",
-        'role_assigned': "✅ Cargo **{role_name}** atribuído ao usuário.",
-        'role_removed': "✅ Cargo **{role_name}** removido do usuário.",
     }
 
     template = success_templates.get(action_type, "✅ Ação concluída com sucesso.")

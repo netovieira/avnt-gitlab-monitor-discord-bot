@@ -44,11 +44,11 @@ class DiscordManager:
         if member:
             try:
                 await guild.kick(member, reason="Removed from GitLab project")
-                print(f"Kicked user {member.name} from the server")
+                print(f"Kicked user {member.display_name} from the server")
             except discord.errors.Forbidden:
-                print(f"Failed to kick user {member.name}: Insufficient permissions")
+                print(f"Failed to kick user {member.display_name}: Insufficient permissions")
         else:
-            print(f"User {user.name} not found in the server")
+            print(f"User {user.display_name} not found in the server")
 
     async def get_or_create_role(self, guild, role_name):
         role = discord.utils.get(guild.roles, name=role_name)
@@ -63,9 +63,9 @@ class DiscordManager:
             role = await self.get_or_create_role(guild, role_name)
             try:
                 await member.add_roles(role)
-                print(f"Assigned role {role_name} to user {member.name}")
+                print(f"Assigned role {role_name} to user {member.display_name}")
             except discord.errors.Forbidden:
-                print(f"Failed to assign role {role_name} to user {member.name}: Insufficient permissions")
+                print(f"Failed to assign role {role_name} to user {member.display_name}: Insufficient permissions")
         else:
             print(f"User {user.name} not found in the server")
 
@@ -77,8 +77,8 @@ class DiscordManager:
             if role and role in member.roles:
                 try:
                     await member.remove_roles(role)
-                    print(f"Removed role {role_name} from user {member.name}")
+                    print(f"Removed role {role_name} from user {member.display_name}")
                 except discord.errors.Forbidden:
-                    print(f"Failed to remove role {role_name} from user {member.name}: Insufficient permissions")
+                    print(f"Failed to remove role {role_name} from user {member.display_name}: Insufficient permissions")
         else:
             print(f"User {user.name} not found in the server")

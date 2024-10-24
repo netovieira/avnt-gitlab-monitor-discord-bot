@@ -1,5 +1,6 @@
 from discord.ext import commands
 from core.cog import Cog
+from core.db.aws_project import AWSProject
 from helpers.datetime import format_date
 from core.aws_resource_manager import AWSResourceManager
 from botocore.exceptions import ClientError, ProfileNotFound
@@ -9,9 +10,13 @@ class AWSResourcesCog(Cog):
         super().__init__(bot, loggerTag='aws_resources')
 
     @commands.command(name="aws_resources", description="Get AWS resource usage information")
-    async def aws_resources(self, ctx, aws_access_key: str, aws_secret_key: str, aws_region: str):
+    async def aws_resources(self, ctx, project_id: int, environment: str):
         try:
-            aws_manager = AWSResourceManager(aws_access_key, aws_secret_key, aws_region)
+
+            _ = AWSProject()
+            project = await _.get_aws_project(project_id, environment)
+
+            aws_manager = AWSResourceManager(project.aws_access_key, project.aws_secret_key, project.aws_region)
             
             ecs_info = aws_manager.get_ecs_info()
             rds_info = aws_manager.get_rds_info()

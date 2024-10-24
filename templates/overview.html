@@ -176,17 +176,22 @@
               </div>
             </div>
             <div class="col right">
-              <div class="small-text">Versão: {{version}}</div>
+              <!-- <div class="small-text">Versão: {{version}}</div> -->
               <div class="small-text">Atualizado: {{updated_at}}</div>
               <div class="small-text">({{humanized_updated_at}})</div>
             </div>
           </div>
           <div id="card-content" class="w-full">
+            <!-- HEADER -->
+            <!-- <div class="project-info">
+              <span class="project-right">Pipeline</span>
+              <span class="project-left">Status</span>
+            </div> -->
             {{repositories_box_content}}
           </div>  
           <div id="card-footer" class="row w-full vcols">
             <div class="bar-container">
-                <div class="bar" style="width: 11%;"></div>
+                <div class="bar" style="width: {{progress_bar_value}}%;"></div>
               </div>
               <div class="row" style="display: flex; flex-direction: row; justify-content: end; ">
                 <div class="small-text">Uso: {{resource_use}}</div>

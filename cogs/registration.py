@@ -11,7 +11,7 @@ class Registration(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config()
-        self.user_link = UserLink(config=self.config)
+        self.user_link = UserLink()
 
     @commands.Cog.listener()
     async def on_member_join(self, member):

@@ -1,11 +1,12 @@
 import logging
 from aiohttp import web
 import discord
+from core.db.project import Project, projectFromCursor
 from discord_manager import DiscordManager
 from user_link import UserLink
 from notification_templates import get_notification_message
 from Config import Config
-from actions.project import Project
+from actions.project import ProjectActions
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -16,36 +17,59 @@ async def handle_webhook(request, bot, discord_manager, user_link, config):
     data = await request.json()
     event_type = request.headers.get('X-Gitlab-Event')
 
-    project_info = await config.get_project(project_id)
-    if not project_info:
+    cursor = await Project().get_project(project_id)
+    if not cursor:
         return web.Response(text='Project not found', status=404)
 
-    # Unpack project_info, assuming the order of columns in your database
-    id, name, group_name, channel_name = project_info
+    # Unpack project info
+    project_info = projectFromCursor(cursor)
 
-    # Get the first guild (assuming the bot is in only one guild)
+    # Get the first guild
     guild = bot.guilds[0] if bot.guilds else None
     if not guild:
         return web.Response(text='Bot is not in any guild', status=500)
 
-    # Find the category and channel
-    category = discord.utils.get(guild.categories, name=group_name)
+    # Debug logs for categories
+    logger.info(f'Looking for category with ID: {project_info.group_id}')
+    logger.info(f'Available categories: {[(c.id, c.name) for c in guild.categories]}')
+
+    # Find the category - try both by ID and name
+    category = discord.utils.get(guild.categories, id=int(project_info.group_id))
     if not category:
-        return web.Response(text=f'Category "{group_name}" not found', status=404)
+        # Try finding by name as fallback
+        category = discord.utils.get(guild.categories, name=project_info.group_name.upper())
+        
+    if not category:
+        # If still not found, try case-insensitive search
+        category = next((c for c in guild.categories if c.name.upper() == project_info.group_name.upper()), None)
+
+    if not category:
+        return web.Response(
+            text=f'Category not found. ID: {project_info.group_id}, Name: {project_info.group_name}. '
+            f'Available categories: {[c.name for c in guild.categories]}', 
+            status=404
+        )
     
-    channel = discord.utils.get(category.channels, name=channel_name)
+    # Find the channel
+    channel = discord.utils.get(category.channels, id=int(project_info.channel_id))
     if not channel:
-        return web.Response(text=f'Channel "{channel_name}" not found in category "{group_name}"', status=404)
+        # Try finding by name as fallback
+        channel = discord.utils.get(category.channels, name=project_info.name.lower())
+        
+    if not channel:
+        return web.Response(
+            text=f'Channel not found in category "{category.name}". '
+            f'Available channels: {[ch.name for ch in category.channels]}', 
+            status=404
+        )
 
     logger.info(f'event_type: {event_type}')
     logger.info(f'data: {data}')
 
-    # Create a Project instance
-    project = Project(guild)
+    # Create and handle Project instance
+    project = ProjectActions(guild)
     await project.load(project_id)
-
-    # Call the handle_webhook method of the Project instance
-    await project.handle_webhook(bot, data, event_type)
+    await project.handle_webhook(bot, data, event_type, channel, category)
 
     return web.Response(text='Webhook received and processed')
 

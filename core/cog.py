@@ -5,7 +5,6 @@ from discord.ext import commands
 class Cog(commands.Cog):
     def __init__(self, bot, loggerTag=None):
         self.bot = bot
-        self.config = Config()
         tag = 'cog';
 
         if loggerTag:

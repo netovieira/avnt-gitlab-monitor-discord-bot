@@ -1,0 +1,1 @@
+DASHBOARD_CHANNEL_NAME = "project-dashboards"

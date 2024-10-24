@@ -2,9 +2,8 @@ import aiosqlite
 from core.db.user_link import UserLink as UserLinkDB
 
 class UserLink:
-    def __init__(self, config):
-        self.config = config
-        self.db = UserLinkDB(self)
+    def __init__(self):
+        self.db = UserLinkDB()
 
     def set_bot(self, bot):
         self.bot = bot
@@ -18,7 +17,7 @@ class UserLink:
 
     async def get_member_by_email(self, email):
         for guild in self.bot.guilds:
-            member = guild.get_member(await self.get_discord_id(email))
+            member = guild.get_member(await self.db.get_discord_id(email))
             if member:
                 return member
         return None

@@ -1,4 +1,4 @@
-from db import DB
+from core.db.DB import DB
 import aiosqlite
 
 class Gitlab(DB):

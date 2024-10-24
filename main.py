@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands, tasks
 from discord.ui import View, Button, Select
 from discord.channel import ForumChannel
+from core.db.project import Project
 from core.env import TOKEN, WEBHOOK_PORT
 from core.logger import getLogger
 from gitlab_webhook import setup_webhook, start_webhook
@@ -28,28 +29,35 @@ async def on_ready():
     logger.info(f'{bot.user} has connected to Discord!')
     logger.info(f'Bot is in {len(bot.guilds)} guilds')
     
-    config = Config()
+    config = Project()
     await config.initialize()
     
     discord_manager = DiscordManager(bot)
-    user_link = UserLink(config=config)
-    await user_link.initialize()
+    user_link = UserLink()
     user_link.set_bot(bot)
     
     runner, port = setup_webhook(bot, discord_manager, user_link, config, WEBHOOK_PORT)
     await start_webhook(runner, port)
+    logger.info('\n\n\n\n\n\n\n\n\n\n\n\n\n')
     logger.info(f'Webhook server started on port {port}')
 
     # Carregando as cogs
-    await bot.load_extension('cogs.registration')
-    await bot.load_extension('cogs.admin_commands')
-    await bot.load_extension("cogs.dashboard")
-    await bot.load_extension("cogs.aws_resources")
-    await bot.load_extension('core.cogs.server_management_cog')
+    await load_extensions(bot)
 
-    # await create_dashboard(bot)
-    # update_dashboard.start()
 
+async def load_extension(bot, cogName):
+    try:
+        await bot.load_extension(cogName)
+        logger.info(f"Successfully loaded extension: {cogName}")
+    except Exception as e:
+        logger.error(f"Failed to load extension {cogName}: {str(e)}")
+
+async def load_extensions(bot):
+    db_dir = os.path.join(os.path.dirname(__file__), 'cogs')
+    for filename in os.listdir(db_dir):
+        if filename.endswith('.py') and filename != '__init__.py':
+            module_name = f'cogs.{filename[:-3]}'
+            await load_extension(bot, module_name)
 @bot.event
 async def on_message(message):
     if message.author == bot.user:

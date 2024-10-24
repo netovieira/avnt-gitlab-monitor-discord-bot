@@ -1,14 +1,17 @@
 import asyncio
 import discord
 from discord.ext import commands
-from actions.project import Project
-from Config import Config
+from actions.project import ProjectActions
 from core.cogs.commands_cog import CommandsCog
+from core.db.gitlab import Gitlab
+from core.db.project import Project
 from helpers.messages import HELP_MESSAGE_CONTENT
 
 class AdminCommands(CommandsCog):
     def __init__(self, bot):
         super().__init__(bot, loggerTag='admin')
+        self.project = Project()
+        self.gitlab = Gitlab()
 
     @commands.command(name='limpar')
     @commands.has_permissions(manage_messages=True)
@@ -68,14 +71,14 @@ class AdminCommands(CommandsCog):
     @commands.has_permissions(administrator=True)
     async def config_gitlab(self, ctx, url: str, token: str):
         self.logger.info('Config GitLab command triggered')
-        await self.config.set_gitlab_config('url', url)
-        await self.config.set_gitlab_config('token', token)
+        await self.gitlab.set_gitlab_config('url', url)
+        await self.gitlab.set_gitlab_config('token', token)
         await ctx.send("Configuração do GitLab atualizada com sucesso!")
 
     @commands.command(name='add_project')
     @commands.has_permissions(administrator=True)
     async def add_project(self, ctx, project_id: int):
-        project = Project(ctx.guild)
+        project = ProjectActions(ctx.guild)
         await project.add(project_id)
 
         await ctx.send(f"Projeto {project_id} adicionado com sucesso!")
@@ -84,7 +87,7 @@ class AdminCommands(CommandsCog):
     @commands.command(name='remove_project')
     @commands.has_permissions(administrator=True)
     async def remove_project(self, ctx, project_id: int):
-        project = Project(ctx.guild)
+        project = ProjectActions(ctx.guild)
         await project.load(project_id)
         await project.remove()
         
@@ -95,10 +98,8 @@ class AdminCommands(CommandsCog):
     @commands.has_permissions(administrator=True)
     async def show_config(self, ctx):
         self.logger.info('Show config command triggered')
-        gitlab_url = await self.config.get_gitlab_config('url')
-        projects = await self.config.get_projects()
-        roles = await self.config.get_roles()
-        notifications = await self.config.get_notifications()
+        gitlab_url = await self.gitlab.get_gitlab_config('url')
+        projects = await self.project.get_projects()
 
         config_message = "Configuração atual do bot:\n\n"
         config_message += f"GitLab URL: {gitlab_url}\n\n"
@@ -109,15 +110,6 @@ class AdminCommands(CommandsCog):
         for project in projects:
             project_id, project_name, project_group, *other_values = project
             config_message += f"- {project_group.upper()} > {project_name}\n"
-
-        
-        config_message += "\nFunções:\n"
-        for role, email in roles:
-            config_message += f"- {role}: {email}\n"
-        
-        config_message += "\nNotificações:\n"
-        for event_type, role in notifications:
-            config_message += f"- {event_type}: {role}\n"
 
         await ctx.send(config_message)
 

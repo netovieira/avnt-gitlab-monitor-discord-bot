@@ -77,17 +77,9 @@ def get_help_message():
     Configura a URL e o token de acesso do GitLab.
     Exemplo: !config_gitlab https://gitlab.com seu_token_aqui
 
-    !add_project <id> <nome>
+    !configure-project <id> <nome>
     Adiciona um projeto do GitLab para monitoramento.
     Exemplo: !add_project 12345 "Meu Projeto"
-
-    !add_role <função> <email>
-    Associa uma função a um email do GitLab.
-    Exemplo: !add_role desenvolvedor usuario@exemplo.com
-
-    !add_notification <tipo_evento> <função>
-    Configura notificações para uma função.
-    Exemplo: !add_notification merge_request desenvolvedor
 
     !show_config
     Mostra a configuração atual do bot.
@@ -116,13 +108,5 @@ def get_config_message(gitlab_url, projects, roles, notifications):
     config_message += "Projetos:\n"
     for project_id, project_name in projects:
         config_message += f"- {project_name} (ID: {project_id})\n"
-    
-    config_message += "\nFunções:\n"
-    for role, email in roles:
-        config_message += f"- {role}: {email}\n"
-    
-    config_message += "\nNotificações:\n"
-    for event_type, role in notifications:
-        config_message += f"- {event_type}: {role}\n"
 
     return config_message

@@ -68,7 +68,7 @@ class ProjectActions:
         _ = await self.db.get_project(project_id)
 
         if not self.notification_channel_name:
-            self.notification_channel_name = _[0] if _ else gitlab_project_data.path
+            self.notification_channel_name = _[1] if _ else gitlab_project_data.path
         
         self.notification_channel = await self.discord.addTextChannel(self.notification_channel_name, self.category_name);
 

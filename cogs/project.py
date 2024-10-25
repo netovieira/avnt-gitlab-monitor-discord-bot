@@ -6,7 +6,22 @@ from core.cog import Cog
 from actions.project import ProjectActions
 from mappers.aws_credentials_manager import AWSCredentialsManager
 
+
 class ProjectCog(Cog):
+
+    project_id: int = -1
+
+    project: Dict[str, str | int] = {
+        "id": "",
+        "name": "",
+        "group_name": "",
+        "repository_url": "",
+        "channel_id": "",
+        "group_id": "",
+        "thread_id": ""
+    }
+
+
     def __init__(self, bot):
         super().__init__(bot, loggerTag='project_config')
         self.project_manager = ProjectActions(bot.guilds[0])
@@ -53,6 +68,16 @@ class ProjectCog(Cog):
             await ctx.send(f"Error processing AWS credentials: {str(e)}")
             return None
 
+
+    async def set_project(self, id: int, project_name: str = None, project_group: str = None):
+        self.project_id = id
+        self.project = await self.project_manager.load(id)
+        
+        if not self.project:
+            await ctx.send(f"Project with ID {id} does not exist. Please configure the project first.")
+            return
+        return self.project
+
     @commands.command(name="register-project")
     @commands.has_permissions(administrator=True)
     async def register_project(self, ctx, project_id: int, environment: str, *args):
@@ -82,6 +107,10 @@ class ProjectCog(Cog):
             else:
                 i += 1
 
+
+        await self.set_project(project_id)
+            
+
         if 'name' in args_dict:
             project_name = args_dict['name']
         else:
@@ -92,8 +121,8 @@ class ProjectCog(Cog):
         else:
             project_group = None
 
-        await self.configure_project(ctx, project_id, project_name, project_group)
-        await self.configure_aws_project(ctx, project_id, environment, *args)
+        await self._configure_project(ctx, project_name, project_group)
+        await self.configure_aws_project(ctx, environment, *args)
 
         await self.dashboardCog.register_dashboard(ctx, project_id)
 
@@ -106,6 +135,12 @@ class ProjectCog(Cog):
             !configure-project <project_id>
             !configure-project <project_id> <custom-project-name> <custom-project-group-name>
         """
+        await self.set_project(project_id)
+
+        return self._configure_project(ctx, project_name or self.project.name, self.project.group_name.upper())
+
+    async def _configure_project(self, ctx, project_name: str = None, project_group: str = None):
+        project_id = self.project_id
         try:            
             # Create or update the project in your database
             await self.project_manager.add(project_id, project_name, project_group)

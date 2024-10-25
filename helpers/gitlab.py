@@ -115,7 +115,11 @@ class GitlabClient:
             project = self.get_project(project_id)
             
             # Build pipeline filter
-            pipeline_filter = {'order_by': 'id', 'sort': 'desc'}
+            pipeline_filter = {
+                'order_by': 'id', 
+                'sort': 'desc',
+                'per_page': 1
+            }
             if ref:
                 pipeline_filter['ref'] = ref
 
@@ -126,12 +130,11 @@ class GitlabClient:
                 return None
 
             if environment:
-                # Filter pipelines by environment
-                for pipeline in pipelines:
-                    pipeline_detail = project.pipelines.get(pipeline.id)
-                    for job in pipeline_detail.jobs.list():
-                        if hasattr(job, 'environment') and job.environment and job.environment['name'] == environment:
-                            return PipelineInfo.from_pipeline(pipeline_detail, environment)
+                # Since we're only getting one pipeline, we can simplify this part
+                pipeline_detail = project.pipelines.get(pipelines[0].id)
+                for job in pipeline_detail.jobs.list():
+                    if hasattr(job, 'environment') and job.environment and job.environment['name'] == environment:
+                        return PipelineInfo.from_pipeline(pipeline_detail, environment)
                 return None
             else:
                 # Return the latest pipeline regardless of environment
@@ -140,7 +143,7 @@ class GitlabClient:
 
         except Exception as e:
             raise Exception(f"Failed to get pipeline information: {str(e)}")
-
+    
     def get_environment_pipelines(self, project_id: int, environment: str, limit: int = 10) -> List[PipelineInfo]:
         """
         Get recent pipelines for a specific environment.

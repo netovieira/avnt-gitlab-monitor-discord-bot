@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 import discord
 from discord.ext import commands
 import asyncio
@@ -17,6 +18,7 @@ from io import BytesIO
 import aiohttp
 from playwright.async_api import async_playwright
 import os
+import pytz
 
 # Update the paths to use the project root directory
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -26,24 +28,26 @@ overviewPath = os.path.join(project_root, 'templates', 'overview.html')
 projectItemPath = os.path.join(project_root, 'templates', 'partials', 'project-info.html')
 
 class DashboardView(discord.ui.View):
-    def __init__(self, project_name):
+    def __init__(self, project_name: str, project_url: str):
         super().__init__(timeout=None)
         self.project_name = project_name
+        self.project_url = project_url
 
-    @discord.ui.button(label="Iniciar novo deploy", style=discord.ButtonStyle.green, custom_id="deploy")
+    @discord.ui.button(label="Iniciar novo deploy", style=discord.ButtonStyle.green, custom_id="deploy", emoji="🚀")
     async def deploy_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(f"Deploying {self.project_name}...", ephemeral=True)
+        button.url = f'{self.project_url}/-/pipelines/new' 
+        await interaction.response.send_message(f"Pronto!", ephemeral=True)
 
-    @discord.ui.button(label="Ver no GitLab", style=discord.ButtonStyle.blurple, custom_id="gitlab")
+    @discord.ui.button(label="Ver no GitLab", style=discord.ButtonStyle.blurple, custom_id="gitlab", emoji="🔗")
     async def gitlab_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        gitlab_url = f"https://gitlab.com/mock-org/{self.project_name.lower().replace(' ', '-')}"
-        await interaction.response.send_message(f"View {self.project_name} in GitLab: {gitlab_url}", ephemeral=True)
+        button.url = self.project_url
+        await interaction.response.send_message(f"Pronto!", ephemeral=True)
 
 class DashboardCog(Cog): 
     def __init__(self, bot):
         super().__init__(bot, loggerTag='dashboard')
         self.dashboard_posts = {}
-        # self.bot.loop.create_task(self.update_dashboards_periodically())
+        self.bot.loop.create_task(self.update_dashboards_periodically())
         self.discord = Discord(bot.guilds[0])
 
     async def getProject(self, project_id: int=None):
@@ -81,7 +85,7 @@ class DashboardCog(Cog):
             await ctx.send("Error: Template files not found. Please check the file paths.")
             return
 
-        view = DashboardView(project_name)
+        view = DashboardView(self.category.name.upper(), self.project.repository_url)
 
         # Check if a thread with the same name already exists
         existing_thread = discord.utils.get(forum_channel.threads, name=self.category.name.upper())
@@ -163,23 +167,28 @@ class DashboardCog(Cog):
 
         # Recovery on AWS a RDS Resource use and Instances API/APP length 
         aws_project = await apm.get_aws_project(project.id, 'prod') or (await apm.get_aws_projects(project_id=project.id))[0] 
-        aws_manager = AWSResourceManager(aws_project.aws_access_key, aws_project.aws_secret_key, aws_project.aws_region)
+        if aws_project:
+            aws_manager = AWSResourceManager(aws_project.aws_access_key, aws_project.aws_secret_key, aws_project.aws_region)
 
-        rds_info = aws_manager.get_rds_info()
-        rds_health_score = rds_info['averages']['health']
-        ecs_info = aws_manager.get_ecs_info()
-        instances_count = len(ecs_info)
+        rds_info = aws_manager.get_rds_info() if aws_project else None
+        rds_health_score = rds_info['averages']['health'] if rds_info else 0
+        ecs_info = aws_manager.get_ecs_info() if aws_project else None
+        instances_count = len(ecs_info) if ecs_info else 0
         
         # Load and render the HTML templates
         with open(overviewPath, 'r') as f:
             overview_template = Template(f.read())
 
+        sp_timezone = pytz.timezone('America/Sao_Paulo')
+        utc_now = datetime.now(timezone.utc)
+        now = utc_now.astimezone(sp_timezone) + timedelta(hours=3)
+
         overview_html = overview_template.render(
             project_icon="🚀", 
             project_name=self.category.name,
             # updated_at=f'{format_date(project_last_run.strftime("%Y-%m-%d %H:%M:%SZ"))} [{project_last_run_env}]',
-            updated_at=format_date(last_run.strftime("%Y-%m-%d %H:%M:%SZ")),
-            humanized_updated_at=format_date(last_run.strftime("%Y-%m-%d %H:%M:%SZ"), True),
+            updated_at=format_date(now.strftime("%Y-%m-%d %H:%M:%SZ")),
+            humanized_updated_at=format_date(now.strftime("%Y-%m-%d %H:%M:%SZ"), True),
             repositories_box_content=project_info_html,
             progress_bar_value=rds_health_score,
             resource_use=f'{rds_health_score:.2f}%',
@@ -204,6 +213,9 @@ class DashboardCog(Cog):
             file=dashboard_image,
             view=view
         )
+        if not thread:
+            ctx.send(f"Failed to create thread for project: {project_name}")
+            return
         self.dashboard_posts[project_name] = thread.id
 
     async def update_dashboards_periodically(self):
@@ -218,13 +230,13 @@ class DashboardCog(Cog):
                     if forum_channel:
                         try:
                             await self.getProject(project.id)
-                            project_name = self.project.name
+                            thread_name = self.project.group_name.upper()
                             
-                            view = DashboardView(project_name)
+                            view = DashboardView(thread_name)
                             dashboard_image = await self.generate_dashboard_image()
 
                             # Check if a thread with the same name already exists
-                            existing_thread = discord.utils.get(forum_channel.threads, name=self.category.name.upper())
+                            existing_thread = discord.utils.get(forum_channel.threads, name=thread_name)
 
                             if existing_thread:
                                 try:
@@ -233,22 +245,22 @@ class DashboardCog(Cog):
                                 except discord.NotFound:
                                     # Modified this part to not use ctx
                                     thread = await forum_channel.create_thread(
-                                        name=self.category.name.upper(),
+                                        name=thread_name,
                                         content="",
                                         file=dashboard_image,
                                         view=view
                                     )
-                                    self.dashboard_posts[project_name] = thread.id
+                                    self.dashboard_posts[thread_name] = thread.id
 
                         except discord.NotFound:
-                            print(f"Dashboard thread for {project_name} not found. Removing from tracking.")
-                            if project_name in self.dashboard_posts:
-                                del self.dashboard_posts[project_name]
+                            print(f"Dashboard thread for {thread_name} not found. Removing from tracking.")
+                            if thread_name in self.dashboard_posts:
+                                del self.dashboard_posts[thread_name]
                         except Exception as e:
-                            print(f"Error updating dashboard for {project_name}: {str(e)}")
+                            print(f"Error updating dashboard for {thread_name}: {str(e)}")
             
             print("Update Dashboard Task: Dashboards updated.")
-            await asyncio.sleep(60 * 5)  # Update every 5 minute
+            await asyncio.sleep(60 * 3)  # Update every 3 minute
 
 async def setup(bot):
     await bot.add_cog(DashboardCog(bot))

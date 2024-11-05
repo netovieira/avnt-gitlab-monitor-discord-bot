@@ -61,3 +61,32 @@ WELCOME_MESSAGES = [
     "{member} acabou de entrar no servidor! Parece que a seleção natural do código escolheu bem desta vez!",
     "Atenção todos! {member} acaba de se juntar à nossa rede neural. Vamos recebê-lo(a) com um ping de boas-vindas!"
 ]
+
+class MessageTemplates:
+    """Message template manager for consistent bot responses"""
+    
+    @staticmethod
+    def format_help_message():
+        """Format the complete help message"""
+        return "\n".join(HELP_MESSAGE_CONTENT)
+    
+    @staticmethod
+    def get_welcome_message(member):
+        """Get a random welcome message"""
+        return random.choice(WELCOME_MESSAGES).format(member=member.mention)
+    
+    @staticmethod
+    def format_error(title, description):
+        """Format error message in Gino's style"""
+        return f"# 🦖 Ops! Parece que algo deu errado!\n\n" \
+               f"## {title}\n" \
+               f"{description}\n\n" \
+               f"*Gino, o Magnífico, sugere que você tente novamente... se tiver coragem!*"
+    
+    @staticmethod
+    def format_success(title, description):
+        """Format success message in Gino's style"""
+        return f"# 🦖 Sucesso Supremo!\n\n" \
+               f"## {title}\n" \
+               f"{description}\n\n" \
+               f"*Gino, o Magnífico, aprova esta ação!*"

@@ -17,211 +17,166 @@ import datetime
 # Set up logging
 logger = getLogger('discord')
 
-intents = discord.Intents.default()
-intents.members = True
-intents.message_content = True
-intents.guilds = True
+class GinoBot(commands.Bot):
+    def __init__(self):
+        intents = discord.Intents.default()
+        intents.members = True
+        intents.message_content = True
+        intents.guilds = True
+        
+        super().__init__(
+            command_prefix='/',
+            intents=intents
+        )
+        
+        # Configurações do bot
+        self.config = Config()
+        self.project_messages = {}
+        self.projects = {
+            "Project A": {"status": ["On Track", "Delayed", "Ahead"], "tasks": range(10, 51)},
+            "Project B": {"status": ["In Progress", "On Hold", "Completed"], "tasks": range(5, 31)},
+            "Project C": {"status": ["Planning", "Executing", "Reviewing"], "tasks": range(15, 41)}
+        }
+        self.ANNOUNCEMENT_CHANNEL_ID = 1291829032589066300
 
-bot = commands.Bot(command_prefix='!', intents=intents)
+    async def setup_hook(self):
+        """Configurações iniciais do bot"""
+        try:
+            # Inicializa o banco de dados
+            config = Project()
+            await config.initialize()
+            
+            # Inicializa gerenciadores
+            self.discord_manager = DiscordManager(self)
+            self.user_link = UserLink()
+            self.user_link.set_bot(self)
+            
+            # Configura webhook
+            runner, port = setup_webhook(
+                self, 
+                self.discord_manager, 
+                self.user_link, 
+                config, 
+                WEBHOOK_PORT
+            )
+            await start_webhook(runner, port)
+            logger.info(f'Webhook server started on port {port}')
+            
+            # Carrega extensões
+            await self.load_all_extensions()
+            
+            # Inicia tarefas em loop
+            self.update_dashboard.start()
+            
+            logger.info("Bot setup completed successfully!")
+            
+        except Exception as e:
+            logger.error(f"Error during bot setup: {e}")
+            raise
 
-@bot.event
-async def on_ready():
-    logger.info(f'{bot.user} has connected to Discord!')
-    logger.info(f'Bot is in {len(bot.guilds)} guilds')
-    
-    config = Project()
-    await config.initialize()
-    
-    discord_manager = DiscordManager(bot)
-    user_link = UserLink()
-    user_link.set_bot(bot)
-    
-    runner, port = setup_webhook(bot, discord_manager, user_link, config, WEBHOOK_PORT)
-    await start_webhook(runner, port)
-    logger.info('\n\n\n\n\n\n\n\n\n\n\n\n\n')
-    logger.info(f'Webhook server started on port {port}')
+    async def load_all_extensions(self):
+        """Carrega todas as extensões/cogs"""
+        cogs_dir = os.path.join(os.path.dirname(__file__), 'cogs')
+        for filename in os.listdir(cogs_dir):
+            if filename.endswith('.py') and filename != '__init__.py':
+                try:
+                    await self.load_extension(f'cogs.{filename[:-3]}')
+                    logger.info(f"Loaded extension: cogs.{filename[:-3]}")
+                except Exception as e:
+                    logger.error(f"Failed to load extension {filename}: {e}")
 
-    # Carregando as cogs
-    await load_extensions(bot)
+    @tasks.loop(minutes=1)
+    async def update_dashboard(self):
+        """Atualiza o dashboard periodicamente"""
+        channel = self.get_channel(self.ANNOUNCEMENT_CHANNEL_ID)
+        if not channel:
+            logger.error(f"Could not find channel {self.ANNOUNCEMENT_CHANNEL_ID}")
+            return
 
+        is_forum = isinstance(channel, ForumChannel)
 
-async def load_extension(bot, cogName):
-    try:
-        await bot.load_extension(cogName)
-        logger.info(f"Successfully loaded extension: {cogName}")
-    except Exception as e:
-        logger.error(f"Failed to load extension {cogName}: {str(e)}")
-
-async def load_extensions(bot):
-    db_dir = os.path.join(os.path.dirname(__file__), 'cogs')
-    for filename in os.listdir(db_dir):
-        if filename.endswith('.py') and filename != '__init__.py':
-            module_name = f'cogs.{filename[:-3]}'
-            await load_extension(bot, module_name)
-@bot.event
-async def on_message(message):
-    if message.author == bot.user:
-        return
-    
-    logger.info(f'Message received: {message.content}')
-    await bot.process_commands(message)
-
-
-# Store message IDs for each project
-project_messages = {}
-
-# Simulated data for projects
-projects = {
-    "Project A": {"status": ["On Track", "Delayed", "Ahead"], "tasks": range(10, 51)},
-    "Project B": {"status": ["In Progress", "On Hold", "Completed"], "tasks": range(5, 31)},
-    "Project C": {"status": ["Planning", "Executing", "Reviewing"], "tasks": range(15, 41)}
-}
-
-# Replace this with your actual announcement channel ID
-ANNOUNCEMENT_CHANNEL_ID = 1291829032589066300 
-
-async def create_dashboard(client):
-    channel = client.get_channel(ANNOUNCEMENT_CHANNEL_ID)
-    if channel is None:
-        logger.error(f"Could not find channel with ID {ANNOUNCEMENT_CHANNEL_ID}")
-        return
-
-    if isinstance(channel, ForumChannel):
-        logger.info("The specified channel is a Forum Channel. Creating a thread for the dashboard.")
-        # Create a new thread for each project
-        for project in projects:
+        for project, message_info in self.project_messages.items():
             try:
+                status = random.choice(self.projects[project]["status"])
+                tasks_completed = random.choice(self.projects[project]["tasks"])
+                
+                embed = discord.Embed(
+                    title=f"{project} Status",
+                    color=discord.Color.green()
+                )
+                embed.add_field(name="Status", value=status, inline=False)
+                embed.add_field(name="Tasks Completed", value=str(tasks_completed), inline=False)
+                embed.set_footer(text=f"Last updated: {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
+                
+                if is_forum:
+                    thread_id, message_id = message_info
+                    thread = await channel.fetch_thread(thread_id)
+                    message = await thread.fetch_message(message_id)
+                else:
+                    message = await channel.fetch_message(message_info)
+                
+                await message.edit(content="", embed=embed)
+                
+            except discord.NotFound:
+                logger.warning(f"Message for {project} not found, recreating...")
+                await self.recreate_dashboard_message(channel, project, is_forum)
+            except Exception as e:
+                logger.error(f"Error updating dashboard for {project}: {e}")
+
+    async def recreate_dashboard_message(self, channel, project, is_forum):
+        """Recria mensagem do dashboard se foi deletada"""
+        try:
+            if is_forum:
                 thread = await channel.create_thread(
                     name=f"{project} Dashboard",
                     content=f"Dashboard for {project}",
-                    auto_archive_duration=10080  # Set to 7 days
-                )
-                project_messages[project] = (thread.id, thread.message.id)
-            except discord.errors.Forbidden:
-                logger.error(f"Bot doesn't have permission to create threads in channel {ANNOUNCEMENT_CHANNEL_ID}")
-                return
-            except Exception as e:
-                logger.error(f"Error creating dashboard thread for {project}: {str(e)}")
-    else:
-        # Original logic for non-forum channels
-        for project in projects:
-            try:
-                message = await channel.send(f"Loading data for {project}...")
-                project_messages[project] = message.id
-            except discord.errors.Forbidden:
-                logger.error(f"Bot doesn't have permission to send messages in channel {ANNOUNCEMENT_CHANNEL_ID}")
-                return
-            except Exception as e:
-                logger.error(f"Error creating dashboard for {project}: {str(e)}")
-
-@tasks.loop(minutes=1)
-async def update_dashboard():
-    channel = bot.get_channel(ANNOUNCEMENT_CHANNEL_ID)
-    if channel is None:
-        logger.error(f"Could not find channel with ID {ANNOUNCEMENT_CHANNEL_ID}")
-        return
-
-    is_forum = isinstance(channel, ForumChannel)
-
-    for project, message_info in project_messages.items():
-        try:
-            status = random.choice(projects[project]["status"])
-            tasks_completed = random.choice(projects[project]["tasks"])
-            
-            embed = discord.Embed(title=f"{project} Status", color=0x00ff00)
-            embed.add_field(name="Status", value=status, inline=False)
-            embed.add_field(name="Tasks Completed", value=f"{tasks_completed}", inline=False)
-            embed.set_footer(text=f"Last updated: {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
-            
-            if is_forum:
-                thread_id, message_id = message_info
-                thread = await channel.fetch_thread(thread_id)
-                message = await thread.fetch_message(message_id)
-            else:
-                message = await channel.fetch_message(message_info)
-            
-            await message.edit(content="", embed=embed)
-        except discord.errors.NotFound:
-            logger.error(f"Message for {project} not found. Recreating...")
-            if is_forum:
-                thread = await channel.create_thread(
-                    name=f"{project} Dashboard",
-                    content=f"Recreating dashboard for {project}...",
                     auto_archive_duration=10080
                 )
-                project_messages[project] = (thread.id, thread.message.id)
+                self.project_messages[project] = (thread.id, thread.message.id)
             else:
-                new_message = await channel.send(f"Recreating data for {project}...")
-                project_messages[project] = new_message.id
+                message = await channel.send(f"Loading data for {project}...")
+                self.project_messages[project] = message.id
         except Exception as e:
-            logger.error(f"Error updating dashboard for {project}: {str(e)}")
+            logger.error(f"Error recreating dashboard message: {e}")
 
-@bot.command(name='testex')
-@commands.has_permissions(administrator=True)
-async def test_join(ctx):
-    registration_cog = bot.get_cog('Registration')
-    if registration_cog:
-        await registration_cog.start_registration(ctx.author)
-    else:
-        await ctx.send("Erro: Cog de registro não encontrado.")
+    async def on_ready(self):
+        """Evento quando o bot está pronto"""
+        logger.info(f'{self.user} has connected to Discord!')
+        logger.info(f'Bot is in {len(self.guilds)} guilds')
+        
+    async def on_message(self, message):
+        """Evento para processar mensagens"""
+        if message.author == self.user:
+            return
+            
+        logger.info(f'Message received: {message.content}')
+        await self.process_commands(message)
 
-@bot.command(name='is_running')
-async def test(ctx):
-    logger.info('is_running command triggered')
-    await ctx.send('O bot está funcionando! Gino, o Magnífico, está aqui para servir... ou talvez para dominar o mundo. Quem sabe?')
-
-@bot.command(name='criar_dashboard2')
-async def criar_dashboard(ctx, categoria):
-    # Criar um embed para a dashboard
-    embed = discord.Embed(
-        title=f"Dashboard - {categoria}",
-        description="Informações do projeto",
-        color=discord.Color.blue()
-    )
-
-    # Exibir informações falsas sobre o repositório
-    embed.add_field(name="Repositório Git", value="Nome do Repositório", inline=False)
-    embed.add_field(name="Data da Última Atualização", value="01/10/2024", inline=True)
-    embed.add_field(name="Data do Último Deploy", value="01/10/2024", inline=True)
-
-    # Botões para forçar deploy e atualização
-    view = discord.ui.View()
-    deploy_button = discord.ui.Button(label="Forçar Deploy", style=discord.ButtonStyle.green)
-    update_button = discord.ui.Button(label="Atualizar Informações", style=discord.ButtonStyle.blurple)
-
-    # Definindo a ação dos botões
-    async def deploy_callback(interaction):
-        await interaction.response.send_message("Deploy forçado!", ephemeral=True)
-
-    async def update_callback(interaction):
-        await interaction.response.send_message("Informações atualizadas!", ephemeral=True)
-
-    deploy_button.callback = deploy_callback
-    update_button.callback = update_callback
-
-    view.add_item(deploy_button)
-    view.add_item(update_button)
-
-    # Adicionando o gráfico (usando um link de exemplo)
-    embed.add_field(name="Gráfico de Acessos/Hora", value="[Gráfico Aqui](https://example.com)", inline=False)
-    embed.add_field(name="Uso de Recursos", value="🔋 75% de uso", inline=False)  # Exemplo de medidor
-
-    # Enviar o embed no canal
-    await ctx.send(embed=embed, view=view)
-
-# Função para lidar com o botão de deploy
-@bot.event
-async def on_interaction(interaction):
-    if interaction.custom_id == "botao_deploy":
-        await interaction.response.send_message("Deploy iniciado para o projeto!", ephemeral=True)
-    elif interaction.custom_id == "botao_update":
-        await interaction.response.send_message("Atualizando a dashboard...", ephemeral=True)
-        # Aqui você pode atualizar o embed ou dados da dashboard com novas informações
-
+    async def on_command_error(self, ctx, error):
+        """Tratamento global de erros de comandos"""
+        if isinstance(error, commands.CommandNotFound):
+            return
+            
+        if isinstance(error, commands.MissingPermissions):
+            await ctx.send("Você não tem permissão para usar este comando!")
+            return
+            
+        logger.error(f"Command error: {error}")
+        await ctx.send(f"Erro ao executar comando: {str(error)}")
 
 async def main():
-    async with bot:
-        await bot.start(TOKEN)
+    """Função principal para iniciar o bot"""
+    try:
+        async with GinoBot() as bot:
+            await bot.start(TOKEN)
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        raise
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Bot shutting down...")
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")

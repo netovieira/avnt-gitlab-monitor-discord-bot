@@ -26,7 +26,7 @@ class ServerManagementCog(Cog):
         super().__init__(bot, loggerTag='server_management')
 
     @app_commands.command(name="remove_all_channels", description="Remove all channels from the server")
-    @app_commands.checks.has_permissions(administrator=True)
+    # @app_commands.checks.has_permissions(administrator=True)
     async def remove_all_channels(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         

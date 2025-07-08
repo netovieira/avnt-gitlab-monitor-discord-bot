@@ -2,7 +2,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import random
-import asyncio
 from Config import Config
 from user_link import UserLink
 from helpers.messages import WELCOME_MESSAGES
@@ -319,11 +318,13 @@ class Registration(commands.Cog):
         return channel
 
     @app_commands.command(name="force_register", description="Força o registro de um usuário")
-    @app_commands.checks.has_permissions(administrator=True)
+    # @app_commands.checks.has_permissions(administrator=True)
     async def force_register(self, interaction: discord.Interaction, member: discord.Member):
         """Force start registration for a user (Admin only)"""
         await interaction.response.defer(ephemeral=True)
         await self.start_registration(member)
+
+
         await interaction.followup.send(f"Processo de registro iniciado para {member.mention}!", ephemeral=True)
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):

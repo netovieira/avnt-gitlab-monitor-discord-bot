@@ -13,8 +13,6 @@ from user_link import UserLink
 
 # Set up logging
 logger = getLogger('discord-actions:project')
-
-
 class ProjectActions:
 
     guild = None;
@@ -45,10 +43,10 @@ class ProjectActions:
     async def load(self, project_id, force=True):
         
         if self.gl is None:
-            self.gl = await GitlabClient.create();
+            self.gl = await GitlabClient.create()
         
         if self.last_id == project_id and not force:
-            return self;
+            return self
 
         self.project_id = project_id
     

@@ -1,4 +1,4 @@
-from discord.ext import commands
+from discord import app_commands
 from core.cog import Cog
 from core.db.aws_project import AWSProject
 from helpers.datetime import format_date
@@ -9,7 +9,7 @@ class AWSResourcesCog(Cog):
     def __init__(self, bot):
         super().__init__(bot, loggerTag='aws_resources')
 
-    @commands.command(name="aws_resources", description="Get AWS resource usage information")
+    @app_commands.command(name="aws_resources", description="Get AWS resource usage information")
     async def aws_resources(self, ctx, project_id: int, environment: str):
         try:
 
@@ -47,4 +47,5 @@ class AWSResourcesCog(Cog):
             await ctx.send(f"An unexpected error occurred: {str(e)}")
 
 async def setup(bot):
-    await bot.add_cog(AWSResourcesCog(bot))
+    cog = AWSResourcesCog(bot)
+    await bot.add_cog(cog)

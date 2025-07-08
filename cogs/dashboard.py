@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import discord
-from discord.ext import commands
+from discord import app_commands
 import asyncio
 from configs.constants import DASHBOARD_CHANNEL_NAME
 from core.aws_resource_manager import AWSResourceManager
@@ -10,12 +10,9 @@ from core.db.project import Project, projectFromCursor
 from core.discord import Discord
 from helpers.datetime import format_date
 from helpers.gitlab import GitlabClient
-from mocks.gitlab import gitlab_mock
 from core.emoji import status_emoji
 from jinja2 import Template
-from PIL import Image
 from io import BytesIO
-import aiohttp
 from playwright.async_api import async_playwright
 import os
 import pytz
@@ -46,9 +43,13 @@ class DashboardView(discord.ui.View):
 class DashboardCog(Cog): 
     def __init__(self, bot):
         super().__init__(bot, loggerTag='dashboard')
-        self.dashboard_posts = {}
-        self.bot.loop.create_task(self.update_dashboards_periodically())
-        self.discord = Discord(bot.guilds[0])
+
+        if len(bot.guilds) > 0:
+            self.dashboard_posts = {}
+            self.bot.loop.create_task(self.update_dashboards_periodically())
+            self.discord = Discord(bot.guilds[0])
+        # else:
+        #     raise Exception(f"cogs.dashboard > bot.guilds is empty.")
 
     async def getProject(self, project_id: int=None):
         _ = Project()
@@ -61,7 +62,7 @@ class DashboardCog(Cog):
 
         return self.project
 
-    @commands.command(name="create_dashboard", description="Creates or updates a dashboard in the specified forum channel")
+    @app_commands.command(name="create_dashboard", description="Creates or updates a dashboard in the specified forum channel")
     async def create_dashboard(self, ctx, *, project_id: int):
         return await self.register_dashboard(ctx, project_id)
 
@@ -263,4 +264,5 @@ class DashboardCog(Cog):
             await asyncio.sleep(60 * 3)  # Update every 3 minute
 
 async def setup(bot):
-    await bot.add_cog(DashboardCog(bot))
+    cog = DashboardCog(bot)
+    await bot.add_cog(cog)

@@ -59,37 +59,40 @@ class ProjectActions:
 
         # Set Project and Discord properties  
         self.gitlab_project = gitlab_project_data
+
+        group_name = gitlab_project_data.namespace['name'] if gitlab_project_data.namespace['kind'] == 'group' else "OTHER"
+        project_url = gitlab_project_data.web_url
         
         if not self.category_name:
-            self.category_name = (self.gitlab_project.namespace['name'] if self.gitlab_project.namespace['kind'] == 'group' else "OTHER").upper()
+            self.category_name = group_name.upper()
         
-        self.category_channel = await self.discord.addCategory(self.category_name);
+        self.category_channel = await self.discord.addCategory(self.category_name)
 
         _ = await self.db.get_project(project_id)
 
         if not self.notification_channel_name:
             self.notification_channel_name = _[0] if _ else gitlab_project_data.path
         
-        self.notification_channel = await self.discord.addTextChannel(self.notification_channel_name, self.category_name);
+        self.notification_channel = await self.discord.addTextChannel(self.notification_channel_name, self.category_name)
+        self.war_room_channel = await self.discord.addVoiceChannel("WAR ROOM", self.category_name)
+        self.code_review_channel = await self.discord.addVoiceChannel("CODE REVIEW", self.category_name)
 
-        if _ == None:
+        if _ is None:
             _ = [
                 gitlab_project_data.id,
-                gitlab_project_data.path,
-                self.category_name,
+                None,
                 self.notification_channel.id,
                 self.category_channel.id,
-                None
-            ];
+                gitlab_project_data.path,
+                self.category_name,
+                group_name,
+                project_url
+            ]
 
-        self.project = projectFromCursor(_);
-        
-        self.war_room_channel = await self.discord.addVoiceChannel("WAR ROOM", self.category_channel);
-        self.code_review_channel = await self.discord.addVoiceChannel("CODE REVIEW", self.category_channel);
-
+        self.project = projectFromCursor(_)
         self.last_id = project_id
 
-        return self;
+        return self
  
     async def setupDiscord(self):
         logger.info(f"--------------------------------------------------- setupDiscord ---------------------------------------------------")
@@ -104,8 +107,15 @@ class ProjectActions:
     async def updateConfig(self):
         logger.info(f"--------------------------------------------------- updateConfig ---------------------------------------------------")
         # Add project to configuration    
-        await self.db.set_project(self.gitlab_project.id, self.notification_channel_name, self.category_name, self.notification_channel.id, self.category_channel.id);
-        self.project = projectFromCursor( await self.db.get_project(self.gitlab_project.id) );
+        await self.db.set_project(
+            self.gitlab_project.id,
+            self.notification_channel_name,
+            self.category_name,
+            self.notification_channel.id,
+            self.category_channel.id,
+            self.project.url
+        )
+        self.project = projectFromCursor( await self.db.get_project(self.gitlab_project.id) )
 
     async def setupGitlab(self):
         logger.info(f"--------------------------------------------------- setupGitlab ---------------------------------------------------")
@@ -159,22 +169,24 @@ class ProjectActions:
 
     async def setup(self):
         if self.gitlab_project:
-            await self.updateConfig();
-            await self.setupDiscord();
-            await self.setupGitlab();
+            await self.updateConfig()
+            await self.setupDiscord()
+            await self.setupGitlab()
 
-            await self.updateProject();
+            await self.updateProject()
 
     
     async def updateProject(self):
         logger.info(f'Update project command triggered for project ID: {self.gitlab_project.id}')
-        
-        self.db.set_project(
-            self.project.id, 
-            self.project.name, 
-            self.project.group_name, 
-            self.notification_channel.id, 
-            self.category_channel.id)
+
+        await self.db.set_project(
+            self.project.id,
+            self.project.name,
+            self.project.group_name,
+            self.notification_channel.id,
+            self.category_channel.id,
+            self.project.url,
+        )
         
 
     async def remove(self):

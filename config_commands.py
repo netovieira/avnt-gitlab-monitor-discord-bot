@@ -31,13 +31,6 @@ class ConfigCommands(commands.Cog):
         await self.gitlab.set_gitlab_config('token', token)
         await ctx.send(get_success_message('gitlab_config'))
 
-    @commands.command(name='set_project')
-    @commands.has_permissions(administrator=True)
-    async def set_project(self, ctx, project_id: int, *, project_name: str):
-        """Adiciona um projeto do GitLab para monitoramento."""
-        await self.project.set_project(project_id, project_name)
-        await ctx.send(get_success_message('project_added', project_name=project_name, project_id=project_id))
-
     @commands.command(name='show_config')
     @commands.has_permissions(administrator=True)
     async def show_config(self, ctx):

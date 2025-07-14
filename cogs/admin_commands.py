@@ -106,7 +106,12 @@ class AdminCommands(CommandsCog):
     async def show_config(self, interaction: discord.Interaction):
         self.logger.info('Show config command triggered')
         gitlab_url = await self.gitlab.get_gitlab_config('url')
+
+        print(f"gitlab_url: {gitlab_url}")
+
         projects = await self.project.get_projects()
+
+        print(f"projects: {projects}")
 
         config_message = "Configuração atual do bot:\n\n"
         config_message += f"GitLab URL: {gitlab_url}\n\n"

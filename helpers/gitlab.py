@@ -190,3 +190,9 @@ class GitlabClient:
             
         except Exception as e:
             raise Exception(f"Failed to get default branch: {str(e)}")
+
+
+
+def get_project_url(project_id: int) -> str:
+    """Get GitLab project URL from project ID"""
+    return f"https://gitlab.com/{project_id}"

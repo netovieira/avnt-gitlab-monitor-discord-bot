@@ -7,7 +7,7 @@ from botocore.exceptions import ClientError, ProfileNotFound
 
 class AWSResourcesCog(Cog):
     def __init__(self, bot):
-        super().__init__(bot, loggerTag='aws_resources')
+        super().__init__(bot, logger_tag='aws_resources')
 
     @commands.command(name="aws_resources", description="Get AWS resource usage information")
     async def aws_resources(self, ctx, project_id: int, environment: str):

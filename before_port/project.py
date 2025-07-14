@@ -1,14 +1,14 @@
 from typing import Dict, Optional
 import discord
 from discord.ext import commands
-from cogs.dashboard import DashboardCog
+from before_port.dashboard import DashboardCog
 from core.cog import Cog
 from actions.project import ProjectActions
 from mappers.aws_credentials_manager import AWSCredentialsManager
 
 class ProjectCog(Cog):
     def __init__(self, bot):
-        super().__init__(bot, loggerTag='project_config')
+        super().__init__(bot, logger_tag='project_config')
         self.project_manager = ProjectActions(bot.guilds[0])
         self.aws_credentials_manager = AWSCredentialsManager()
         self.dashboardCog = DashboardCog(bot)

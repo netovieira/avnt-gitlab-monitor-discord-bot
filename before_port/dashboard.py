@@ -41,7 +41,7 @@ class DashboardView(discord.ui.View):
 
 class DashboardCog(Cog): 
     def __init__(self, bot):
-        super().__init__(bot, loggerTag='dashboard')
+        super().__init__(bot, logger_tag='dashboard')
         self.dashboard_posts = {}
         # self.bot.loop.create_task(self.update_dashboards_periodically())
         self.discord = Discord(bot.guilds[0])

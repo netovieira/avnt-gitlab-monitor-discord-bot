@@ -17,45 +17,45 @@ logger = getLogger('discord-actions:project')
 
 class ProjectActions:
 
-    guild = None;
-    last_id:int = -1;
-    gitlab_project = None;
-    db = None;
-    gl = None;
-    discord = None;
+    guild = None
+    last_id:int = -1
+    project_id:int = None
+    gitlab_project = None
+    db = None
+    gl = None
+    discord = None
 
-    category_name = None;
-    notification_channel_name = None;
+    category_name = None
+    notification_channel_name = None
 
     # CHANNELS
-    dashboard_channel = None;
-    category_channel = None;
-    notification_channel = None;
-    war_room_channel = None;
-    code_review_channel = None;
+    dashboard_channel = None
+    category_channel = None
+    notification_channel = None
+    war_room_channel = None
+    code_review_channel = None
 
-    project = None;
+    project = None
 
     def __init__(self, guild):
         self.db = Project()
-        self.guild = guild;
-        self.discord = Discord(guild);
+        self.guild = guild
+        self.discord = Discord(guild)
     
 
     async def load(self, project_id, force=True):
         
         if self.gl is None:
-            self.gl = await GitlabClient.create();
+            self.gl = await GitlabClient.create()
         
         if self.last_id == project_id and not force:
-            return self;
+            return self
 
         self.project_id = project_id
     
         gitlab_project_data = self.gl.instance.projects.get(project_id)
         if not gitlab_project_data:
             raise Exception(f"Project with ID {project_id} not found.")
-            return
 
         # Set Project and Discord properties  
         self.gitlab_project = gitlab_project_data

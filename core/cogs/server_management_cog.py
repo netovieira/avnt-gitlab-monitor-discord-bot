@@ -1,12 +1,14 @@
 import discord
+import asyncio
+from discord import app_commands
 from discord.ext import commands
 from core.cog import Cog
 
 class ServerManagementCog(Cog):
     def __init__(self, bot):
-        super().__init__(bot, loggerTag='server_management')
+        super().__init__(bot, logger_tag='server_management')
 
-    @commands.command(name="remove_all_channels", description="Remove all channels from the server")
+    @app_commands.command(name="remove_all_channels", description="Remove all channels from the server")
     @commands.has_permissions(administrator=True)
     async def remove_all_channels(self, ctx):
         # Confirmation message

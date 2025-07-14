@@ -4,6 +4,8 @@ import discord
 from discord.ext import tasks
 from discord.channel import ForumChannel
 from discord import app_commands
+
+from Config import Config
 from core.db.project import Project
 from core.env import TOKEN, WEBHOOK_PORT
 from core.logger import getLogger
@@ -59,7 +61,7 @@ async def on_ready():
     logger.info(f'{bot.user} conectado com sucesso!')
     logger.info(f'Guilds: {len(bot.guilds)}')
 
-    config = Project()
+    config = Config()
     await config.initialize()
 
     discord_manager = DiscordManager(bot)

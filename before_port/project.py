@@ -1,7 +1,7 @@
 from typing import Dict, Optional
 import discord
 from discord.ext import commands
-from before_port.dashboard import DashboardCog
+from cogs.dashboard import DashboardCog
 from core.cog import Cog
 from actions.project import ProjectActions
 from mappers.aws_credentials_manager import AWSCredentialsManager

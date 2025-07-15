@@ -1,225 +1,226 @@
 import os
 import asyncio
 import discord
-from discord.ext import commands
+from discord.ext import tasks
 from discord.channel import ForumChannel
+from discord import app_commands
+
+from Config import Config
 from core.db.project import Project
 from core.env import TOKEN, WEBHOOK_PORT
 from core.logger import getLogger
 from gitlab_webhook import setup_webhook, start_webhook
 from discord_manager import DiscordManager
 from user_link import UserLink
-from Config import Config
 import random
 import datetime
 
-# Set up logging
+# Logging
 logger = getLogger('discord')
 
+intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True
+intents.guilds = True
 
-class GinoBot(commands.Bot):
+
+class GinoBot(discord.Client):
     def __init__(self):
-        intents = discord.Intents.default()
-        intents.members = True
-        intents.message_content = True
-        intents.guilds = True
-
-        super().__init__(
-            command_prefix='/',
-            intents=intents,
-            help_command=None
-        )
-
-        # Configurações do bot
-        self.config = Config()
+        super().__init__(intents=intents)
+        self.tree = app_commands.CommandTree(self)
         self.project_messages = {}
-        self.projects = {
-            "Project A": {"status": ["On Track", "Delayed", "Ahead"], "tasks": range(10, 51)},
-            "Project B": {"status": ["In Progress", "On Hold", "Completed"], "tasks": range(5, 31)},
-            "Project C": {"status": ["Planning", "Executing", "Reviewing"], "tasks": range(15, 41)}
-        }
-        self.ANNOUNCEMENT_CHANNEL_ID = 1291829032589066300
-        self.synced = False
 
     async def setup_hook(self):
-        """Configurações iniciais do bot"""
         try:
-            # Inicializa o banco de dados
-            config = Project()
-            await config.initialize()
+            await self.load_cogs()
 
-            # Inicializa gerenciadores
-            self.discord_manager = DiscordManager(self)
-            self.user_link = UserLink()
-            self.user_link.set_bot(self)
-
-            # Configura webhook
-            runner, port = setup_webhook(
-                self,
-                self.discord_manager,
-                self.user_link,
-                config,
-                WEBHOOK_PORT
-            )
-            await start_webhook(runner, port)
-            logger.info(f'Webhook server started on port {port}')
-
-            # Carrega extensões
-            await self.load_all_extensions()
-
-            logger.info("Bot setup completed successfully!")
-
+            guild_id = 1390760661730070628  # servidor de testes
+            guild = discord.Object(id=guild_id)
+            self.tree.copy_global_to(guild=guild)
+            synced = await self.tree.sync(guild=guild)
+            logger.info(f"Sincronizados {len(synced)} comandos slash no servidor {guild_id}")
         except Exception as e:
-            logger.error(f"Error during bot setup: {e}")
-            raise
+            logger.error(f"Erro ao sincronizar comandos slash: {e}")
 
-    async def load_all_extensions(self):
-        """Carrega todas as extensões/cogs"""
-        cogs_to_load = [
-            'cogs.dashboard',
-            'cogs.aws_resources',
-            'cogs.registration',
-            'cogs.project',
-            'cogs.admin_commands',
-            'core.cogs.server_management_cog'
-        ]
+    async def load_cogs(self):
+        import importlib
 
-        for cog in cogs_to_load:
+        for filename in os.listdir('./cogs'):
+            if filename.endswith('.py'):
+                module_name = f'cogs.{filename[:-3]}'
+                module = importlib.import_module(module_name)
+                if hasattr(module, 'setup'):
+                    await module.setup(self)
+
+
+bot = GinoBot()
+
+# ========== Eventos ==========
+@bot.event
+async def on_ready():
+    logger.info(f'{bot.user} conectado com sucesso!')
+    logger.info(f'Guilds: {len(bot.guilds)}')
+
+    config = Config()
+    await config.initialize()
+
+    discord_manager = DiscordManager(bot)
+    user_link = UserLink()
+    user_link.set_bot(bot)
+
+    runner, port = setup_webhook(bot, discord_manager, user_link, config, WEBHOOK_PORT)
+    await start_webhook(runner, port)
+    logger.info(f"Webhook server started on port {port}")
+
+
+@bot.event
+async def on_interaction(interaction: discord.Interaction):
+    # Componente (botão, select etc.)
+    if interaction.type == discord.InteractionType.component:
+        custom_id = interaction.data.get("custom_id")
+        if custom_id == "botao_deploy":
+            await interaction.response.send_message("Deploy iniciado para o projeto!", ephemeral=True)
+        elif custom_id == "botao_update":
+            await interaction.response.send_message("Atualizando a dashboard...", ephemeral=True)
+
+
+# ========== Comandos Slash ==========
+@bot.tree.command(name="testex", description="Inicia o processo de registro (admin)")
+@app_commands.checks.has_permissions(administrator=True)
+async def testex(interaction: discord.Interaction):
+    registration_cog = bot.get_cog('Registration')
+    if registration_cog:
+        await registration_cog.start_registration(interaction.user)
+        await interaction.response.send_message("Registro iniciado com sucesso!", ephemeral=True)
+    else:
+        await interaction.response.send_message("Erro: Cog de registro não encontrado.", ephemeral=True)
+
+
+@bot.tree.command(name="is_running", description="Verifica se o bot está funcionando")
+async def is_running(interaction: discord.Interaction):
+    logger.info('Comando /is_running executado')
+    await interaction.response.send_message(
+        'O bot está funcionando! Gino, o Magnífico, está aqui para servir... ou talvez para dominar o mundo. Quem sabe?',
+        ephemeral=True
+    )
+
+
+@bot.tree.command(name="criar_dashboard2", description="Cria um dashboard de exemplo com botões")
+@app_commands.describe(categoria="Nome da categoria ou projeto")
+async def criar_dashboard2(interaction: discord.Interaction, categoria: str):
+    embed = discord.Embed(
+        title=f"Dashboard - {categoria}",
+        description="Informações do projeto",
+        color=discord.Color.blue()
+    )
+
+    embed.add_field(name="Repositório Git", value="Nome do Repositório", inline=False)
+    embed.add_field(name="Data da Última Atualização", value="01/10/2024", inline=True)
+    embed.add_field(name="Data do Último Deploy", value="01/10/2024", inline=True)
+    embed.add_field(name="Gráfico de Acessos/Hora", value="[Gráfico Aqui](https://example.com)", inline=False)
+    embed.add_field(name="Uso de Recursos", value="🔋 75% de uso", inline=False)
+
+    view = discord.ui.View()
+
+    deploy_button = discord.ui.Button(label="Forçar Deploy", style=discord.ButtonStyle.green, custom_id="botao_deploy")
+    update_button = discord.ui.Button(label="Atualizar Informações", style=discord.ButtonStyle.blurple, custom_id="botao_update")
+
+    view.add_item(deploy_button)
+    view.add_item(update_button)
+
+    await interaction.response.send_message(embed=embed, view=view)
+
+
+# ========== Funções auxiliares ==========
+async def load_extensions(bot):
+    import traceback
+
+    db_dir = os.path.join(os.path.dirname(__file__), 'cogs')
+    for filename in os.listdir(db_dir):
+        if filename.endswith('.py') and filename != '__init__.py':
+            module_name = f'cogs.{filename[:-3]}'
             try:
-                await self.load_extension(cog)
-                logger.info(f"Loaded extension: {cog}")
+                await bot.load_extension(module_name)
+                logger.info(f"Loaded extension: {module_name}")
             except Exception as e:
-                logger.error(f"Failed to load extension {cog}: {e}")
+                logger.error(f"Erro ao carregar {module_name}: {e}")
+                traceback.print_exc()
 
-    async def on_ready(self):
-        """Evento quando o bot está pronto"""
-        logger.info(f'{self.user} has connected to Discord!')
-        logger.info(f'Bot is in {len(self.guilds)} guilds')
 
-        # Sincroniza slash commands apenas uma vez
-        if not self.synced:
+# ========== Dashboard simulada ==========
+ANNOUNCEMENT_CHANNEL_ID = 1291829032589066300
+
+projects = {
+    "Project A": {"status": ["On Track", "Delayed", "Ahead"], "tasks": range(10, 51)},
+    "Project B": {"status": ["In Progress", "On Hold", "Completed"], "tasks": range(5, 31)},
+    "Project C": {"status": ["Planning", "Executing", "Reviewing"], "tasks": range(15, 41)}
+}
+
+
+async def create_dashboard(client):
+    channel = client.get_channel(ANNOUNCEMENT_CHANNEL_ID)
+    if channel is None:
+        logger.error(f"Could not find channel with ID {ANNOUNCEMENT_CHANNEL_ID}")
+        return
+
+    if isinstance(channel, ForumChannel):
+        logger.info("Canal é um ForumChannel, criando threads.")
+        for project in projects:
             try:
-                synced = await self.tree.sync()
-                logger.info(f"Synced {len(synced)} command(s)")
-                self.synced = True
-            except Exception as e:
-                logger.error(f"Failed to sync commands: {e}")
-
-    async def on_message(self, message):
-        """Evento para processar mensagens"""
-        if message.author == self.user:
-            return
-
-        logger.info(f'📨 Message received: {message.content}')
-
-        # Processa comandos prefix
-        await self.process_commands(message)
-
-    async def on_command_error(self, ctx, error):
-        """Tratamento global de erros de comandos prefix"""
-        if isinstance(error, commands.CommandNotFound):
-            # Ignora comandos não encontrados silenciosamente
-            return
-
-        if isinstance(error, commands.MissingPermissions):
-            await ctx.send("❌ Você não tem permissão para usar este comando!")
-            return
-
-        if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(f"❌ Argumento obrigatório ausente: `{error.param.name}`")
-            return
-
-        logger.error(f"Command error in {ctx.command}: {error}")
-        await ctx.send(f"❌ Erro ao executar comando: {str(error)}")
-
-    async def on_app_command_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
-        """Tratamento global de erros de slash commands"""
-        if isinstance(error, discord.app_commands.CheckFailure):
-            await interaction.response.send_message(
-                "❌ Você não tem permissão para usar este comando!",
-                ephemeral=True
-            )
-            return
-
-        if isinstance(error, discord.app_commands.MissingPermissions):
-            await interaction.response.send_message(
-                "❌ Você não tem as permissões necessárias!",
-                ephemeral=True
-            )
-            return
-
-        logger.error(f"App command error in {interaction.command}: {error}")
-
-        # Tenta responder ao usuário
-        try:
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    f"❌ Erro ao executar comando: {str(error)}",
-                    ephemeral=True
+                thread = await channel.create_thread(
+                    name=f"{project} Dashboard",
+                    content=f"Dashboard for {project}",
+                    auto_archive_duration=10080
                 )
+                bot.project_messages[project] = (thread.id, thread.message.id)
+            except Exception as e:
+                logger.error(f"Erro ao criar thread para {project}: {str(e)}")
+    else:
+        for project in projects:
+            try:
+                message = await channel.send(f"Loading data for {project}...")
+                bot.project_messages[project] = message.id
+            except Exception as e:
+                logger.error(f"Erro ao criar dashboard para {project}: {str(e)}")
+
+
+@tasks.loop(minutes=1)
+async def update_dashboard():
+    channel = bot.get_channel(ANNOUNCEMENT_CHANNEL_ID)
+    if channel is None:
+        logger.error(f"Could not find channel with ID {ANNOUNCEMENT_CHANNEL_ID}")
+        return
+
+    is_forum = isinstance(channel, ForumChannel)
+
+    for project, message_info in bot.project_messages.items():
+        try:
+            status = random.choice(projects[project]["status"])
+            tasks_completed = random.choice(projects[project]["tasks"])
+
+            embed = discord.Embed(title=f"{project} Status", color=0x00ff00)
+            embed.add_field(name="Status", value=status, inline=False)
+            embed.add_field(name="Tasks Completed", value=f"{tasks_completed}", inline=False)
+            embed.set_footer(text=f"Last updated: {discord.utils.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
+
+            if is_forum:
+                thread_id, message_id = message_info
+                thread = await channel.fetch_thread(thread_id)
+                message = await thread.fetch_message(message_id)
             else:
-                await interaction.followup.send(
-                    f"❌ Erro ao executar comando: {str(error)}",
-                    ephemeral=True
-                )
-        except:
-            pass
+                message = await channel.fetch_message(message_info)
 
-    # Comandos prefix básicos para compatibilidade
-    @commands.command(name='help', aliases=['ajuda'])
-    async def help_command(self, ctx):
-        """Comando de ajuda básico"""
-        embed = discord.Embed(
-            title="🦖 Gino - O Bot Supremo",
-            description="Use `/help` para ver todos os comandos disponíveis!",
-            color=discord.Color.blue()
-        )
-        embed.add_field(
-            name="Comandos Principais",
-            value="• `/register_project` - Registrar projeto\n• `/configure_project` - Configurar projeto\n• `/list_projects` - Listar projetos",
-            inline=False
-        )
-        await ctx.send(embed=embed)
-
-    @commands.command(name='sync')
-    @commands.has_permissions(administrator=True)
-    async def sync_commands(self, ctx):
-        """Sincroniza slash commands manualmente"""
-        try:
-            synced = await self.tree.sync()
-            await ctx.send(f"✅ Sincronizados {len(synced)} comando(s)!")
-            logger.info(f"Manually synced {len(synced)} command(s)")
+            await message.edit(content="", embed=embed)
+        except discord.errors.NotFound:
+            logger.error(f"Mensagem de {project} não encontrada. Recriando...")
         except Exception as e:
-            await ctx.send(f"❌ Erro ao sincronizar: {str(e)}")
-            logger.error(f"Manual sync failed: {e}")
-
-    @commands.command(name='status')
-    async def status_command(self, ctx):
-        """Verifica o status do bot"""
-        embed = discord.Embed(
-            title="🦖 Status do Gino",
-            color=discord.Color.green()
-        )
-        embed.add_field(name="Latência", value=f"{round(self.latency * 1000)}ms", inline=True)
-        embed.add_field(name="Servidores", value=str(len(self.guilds)), inline=True)
-        embed.add_field(name="Usuários", value=str(len(self.users)), inline=True)
-        await ctx.send(embed=embed)
+            logger.error(f"Erro ao atualizar {project}: {str(e)}")
 
 
+# ========== Start ==========
 async def main():
-    """Função principal para iniciar o bot"""
-    try:
-        async with GinoBot() as bot:
-            await bot.start(TOKEN)
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
-        raise
-
+    async with bot:
+        await bot.start(TOKEN)
 
 if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Bot shutting down...")
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
+    asyncio.run(main())

@@ -68,6 +68,96 @@ class AWSResourceManager:
 
         return ecs_info
 
+    def get_specific_service_info(self, cluster_name, service_name):
+        """
+        Busca informações de um service específico no ECS
+
+        Args:
+            cluster_name (str): Nome do cluster ECS
+            service_name (str): Nome do service ECS
+
+        Returns:
+            dict: Informações do service ou None se não encontrado
+        """
+        if self.status != "configured":
+            raise Exception("AWS resource manager not configured")
+
+        try:
+            # Busca detalhes do service específico
+            services_response = self.ecs_client.describe_services(
+                cluster=cluster_name,
+                services=[service_name]
+            )
+
+            if not services_response['services']:
+                return None  # Service não encontrado
+
+            service = services_response['services'][0]
+
+            # Informações básicas do service
+            running_count = service['runningCount']
+            desired_count = service['desiredCount']
+            pending_count = service['pendingCount']
+
+            # Pega data de última atualização do taskSet ou deployment
+            last_update = None
+            if service.get('deployments') and len(service['deployments']) > 0:
+                last_update = service['deployments'][0].get('updatedAt')
+            elif service.get('taskSets') and len(service['taskSets']) > 0:
+                last_update = service['taskSets'][0].get('updatedAt')
+
+            # Se não achou, usa o campo updatedAt do próprio service
+            if not last_update:
+                last_update = service.get('updatedAt')
+
+            # Determina status baseado nas contagens
+            if pending_count > 0:
+                status = "running"  # Em deployment
+            elif running_count > 0:
+                status = "success"  # Rodando normalmente
+            else:
+                status = "failed"  # Parado
+
+            # Busca métricas do CloudWatch para o service específico
+            cpu_metric = self.get_cloudwatch_metric(
+                'AWS/ECS',
+                'CPUUtilization',
+                [
+                    {'Name': 'ClusterName', 'Value': cluster_name},
+                    {'Name': 'ServiceName', 'Value': service_name}
+                ]
+            )
+
+            memory_metric = self.get_cloudwatch_metric(
+                'AWS/ECS',
+                'MemoryUtilization',
+                [
+                    {'Name': 'ClusterName', 'Value': cluster_name},
+                    {'Name': 'ServiceName', 'Value': service_name}
+                ]
+            )
+
+            return {
+                'cluster': cluster_name,
+                'service': service_name,
+                'running_count': running_count,
+                'desired_count': desired_count,
+                'pending_count': pending_count,
+                'status': status,
+                'last_update': last_update,
+                'cpu_usage': round(cpu_metric, 2) if cpu_metric else 0,
+                'memory_usage': round(memory_metric, 2) if memory_metric else 0,
+                'service_arn': service['serviceArn'],
+                'task_definition': service['taskDefinition']
+            }
+
+        except self.ecs_client.exceptions.ClusterNotFoundException:
+            raise Exception(f"Cluster '{cluster_name}' not found")
+        except self.ecs_client.exceptions.ServiceNotFoundException:
+            raise Exception(f"Service '{service_name}' not found in cluster '{cluster_name}'")
+        except Exception as e:
+            raise Exception(f"Error getting service info: {str(e)}")
+
     def get_rds_info(self):
         if self.status != "configured":
             raise Exception("AWS resource manager not configured")

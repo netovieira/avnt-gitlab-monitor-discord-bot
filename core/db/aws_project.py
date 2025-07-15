@@ -6,9 +6,11 @@ def fromCursor(row):
     return DotDict({
         'id': row[0],
         'environment': row[1],
-        'aws_access_key': row[2],
-        'aws_secret_key': row[3],
-        'aws_region': row[4]
+        'cluster_name': row[2],
+        'service_name': row[3],
+        'aws_access_key': row[4],
+        'aws_secret_key': row[5],
+        'aws_region': row[6]
     })
 
 class AWSProject(DB):
@@ -20,6 +22,8 @@ class AWSProject(DB):
                 (
                              id INTEGER,
                              environment TEXT,
+                             cluster_name TEXT,
+                             service_name TEXT,
                              aws_secret_key TEXT, 
                              aws_access_key TEXT, 
                              aws_region TEXT,
@@ -39,7 +43,7 @@ class AWSProject(DB):
             List of AWS project dictionaries
         """
         query = '''
-            SELECT id, environment, aws_access_key, aws_secret_key, aws_region 
+            SELECT id, environment, cluster_name, service_name, aws_access_key, aws_secret_key, aws_region 
             FROM aws_projects
         '''
         params = []
@@ -63,14 +67,14 @@ class AWSProject(DB):
 
     async def get_aws_project(self, id, environment):
         async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute('SELECT id, environment, aws_access_key, aws_secret_key, aws_region FROM aws_projects WHERE id = ? and environment = ?', (id,environment)) as cursor:
+            async with db.execute('SELECT id, environment, cluster_name, service_name, aws_access_key, aws_secret_key, aws_region FROM aws_projects WHERE id = ? and environment = ?', (id,environment)) as cursor:
                 row = await cursor.fetchone()
                 return fromCursor(row) if row else None
 
-    async def set_aws_project(self, project_id, environment, aws_access_key, aws_secret_key, aws_region):
+    async def set_aws_project(self, project_id, environment, cluster_name, service_name, aws_access_key, aws_secret_key, aws_region):
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute('INSERT OR REPLACE INTO aws_projects (id, environment, aws_access_key, aws_secret_key, aws_region) VALUES (?, ?, ?, ?, ?)', 
-                             (project_id, environment, aws_access_key, aws_secret_key, aws_region))
+            await db.execute('INSERT OR REPLACE INTO aws_projects (id, environment, cluster_name, service_name, aws_access_key, aws_secret_key, aws_region) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                             (project_id, environment, cluster_name, service_name, aws_access_key, aws_secret_key, aws_region))
             await db.commit()
 
     async def remove_aws_project(self, project_id, environment):

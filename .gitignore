@@ -115,3 +115,8 @@ venv.bak/
 
 # VSCode
 .vscode/
+
+*.db
+*.jpg
+*bkp*
+*.log
